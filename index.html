@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Canvas Infinito</title>
+  <title>Canvas Mapa Interactivo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
   <style>
     html, body {
@@ -22,90 +22,79 @@
 
 <script>
   const canvas = new fabric.Canvas('c', { selection: false });
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  canvas.setWidth(width);
-  canvas.setHeight(height);
+  canvas.setWidth(window.innerWidth);
+  canvas.setHeight(window.innerHeight);
+  canvas.setZoom(1);
 
-  // Fondo: textura papel
-  fabric.Image.fromURL('https://cdn.pixabay.com/photo/2017/01/31/22/29/paper-2029236_1280.jpg', function(img) {
-    const patternSourceCanvas = new fabric.StaticCanvas(null, { width: img.width, height: img.height });
-    patternSourceCanvas.add(img);
-    const pattern = new fabric.Pattern({
-      source: patternSourceCanvas.getElement(),
-      repeat: 'repeat',
+  const canvasSize = { width: 5000, height: 4000 };
+
+  const sections = {
+    home: { x: 0, y: 0, img: 'https://cdn.pixabay.com/photo/2017/01/31/22/29/paper-2029236_1280.jpg' },
+    portafolio: { x: 2800, y: 1500, img: 'https://cdn.pixabay.com/photo/2016/11/29/06/15/banner-1866623_1280.jpg' },
+    contacto: { x: 500, y: 3000, img: 'https://cdn.pixabay.com/photo/2015/01/08/18/29/man-593333_1280.jpg' },
+    servicios: { x: 3500, y: 600, img: 'https://cdn.pixabay.com/photo/2014/09/23/20/38/tools-458992_1280.jpg' },
+    sobreMi: { x: 1500, y: 2000, img: 'https://cdn.pixabay.com/photo/2016/11/21/17/41/blackboard-1846861_1280.jpg' }
+  };
+
+  function goTo(x, y) {
+    canvas.viewportTransform[4] = -x + canvas.getWidth() / 2;
+    canvas.viewportTransform[5] = -y + canvas.getHeight() / 2;
+    canvas.setZoom(1);
+    canvas.requestRenderAll();
+  }
+
+  for (const key in sections) {
+    const sec = sections[key];
+    fabric.Image.fromURL(sec.img, img => {
+      img.scaleToWidth(800);
+      img.scaleToHeight(600);
+      img.set({ left: sec.x, top: sec.y, selectable: false });
+      canvas.add(img);
+
+      if (key === "home") {
+        // Botones desde el "home" a otras zonas
+        let offset = 0;
+        Object.keys(sections).forEach(target => {
+          if (target === "home") return;
+          const btn = new fabric.Text(target, {
+            left: sec.x + 50,
+            top: sec.y + 50 + offset,
+            fontSize: 24,
+            fill: "black",
+            hoverCursor: "pointer",
+            selectable: false,
+            fontFamily: "sans-serif",
+            backgroundColor: "rgba(255,255,255,0.7)",
+            padding: 8
+          });
+          btn.on("mousedown", () => {
+            const tSec = sections[target];
+            goTo(tSec.x, tSec.y);
+          });
+          canvas.add(btn);
+          offset += 50;
+        });
+      }
     });
-    canvas.setBackgroundColor(pattern, canvas.renderAll.bind(canvas));
+  }
+
+  // Bloquear pan libre
+  let dragging = false;
+  canvas.on("mouse:down", () => dragging = true);
+  canvas.on("mouse:up", () => dragging = false);
+  canvas.on("mouse:move", function(opt) {
+    if (dragging) {
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    }
   });
 
-  // Añadir botones (textos)
-  const sections = [
-    { name: "Sobre mí", x: 100, y: 100 },
-    { name: "Portafolio", x: 1000, y: 100 },
-    { name: "Servicios", x: 2000, y: 100 },
-    { name: "Fotografía", x: 3000, y: 100 },
-    { name: "Diseño gráfico", x: 4000, y: 100 },
-    { name: "Diseño web", x: 5000, y: 100 },
-    { name: "Tips", x: 6000, y: 100 },
-    { name: "Redes sociales", x: 7000, y: 100 },
-    { name: "Contáctame", x: 8000, y: 100 }
-  ];
-
-  sections.forEach(sec => {
-    const text = new fabric.Text(sec.name, {
-      left: sec.x,
-      top: sec.y,
-      fontSize: 30,
-      fill: "black",
-      selectable: false,
-      hoverCursor: "pointer"
-    });
-    text.on("mousedown", () => {
-      // pan hacia la sección
-      canvas.viewportTransform[4] = -sec.x + canvas.width / 2;
-      canvas.viewportTransform[5] = -sec.y + canvas.height / 2;
-      canvas.requestRenderAll();
-    });
-    canvas.add(text);
-  });
-
-  // Zoom suave con límites
+  // Bloquear zoom con rueda
   canvas.on("mouse:wheel", function(opt) {
-    let zoom = canvas.getZoom();
-    zoom *= 0.999 ** opt.e.deltaY;
-    zoom = Math.min(Math.max(zoom, 0.5), 3); // límites
-    canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
     opt.e.preventDefault();
     opt.e.stopPropagation();
   });
 
-  // Pan con mouse
-  let isDragging = false;
-  let lastPosX, lastPosY;
-
-  canvas.on("mouse:down", function(opt) {
-    isDragging = true;
-    lastPosX = opt.e.clientX;
-    lastPosY = opt.e.clientY;
-  });
-
-  canvas.on("mouse:move", function(opt) {
-    if (isDragging) {
-      const e = opt.e;
-      const vpt = canvas.viewportTransform;
-      vpt[4] += e.clientX - lastPosX;
-      vpt[5] += e.clientY - lastPosY;
-      canvas.requestRenderAll();
-      lastPosX = e.clientX;
-      lastPosY = e.clientY;
-    }
-  });
-
-  canvas.on("mouse:up", function() {
-    isDragging = false;
-  });
-
-  // Adaptar tamaño en móviles
   window.addEventListener('resize', () => {
     canvas.setWidth(window.innerWidth);
     canvas.setHeight(window.innerHeight);
