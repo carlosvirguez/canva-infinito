@@ -1,262 +1,116 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Canvas Infinito Interactivo</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
-<style>
-  html, body {
-    margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #f7f7f7;
-  }
-  #instructions {
-    position: absolute; top: 10px; left: 10px; background: white; padding: 10px;
-    border: 1px solid #ccc; z-index: 100; font-family: sans-serif; font-size: 14px;
-  }
-  canvas { display: block; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Canvas Infinito</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-<div id="instructions">
-  🔍 Rueda o pellizco para zoom suave.<br>
-  ✋ Arrastra para mover el canvas.<br>
-  🔘 Haz click en un botón para ir a esa sección.
-</div>
-
 <canvas id="c"></canvas>
 
 <script>
-  const canvasWidth = 4000;
-  const canvasHeight = 3000;
+  const canvas = new fabric.Canvas('c', { selection: false });
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  canvas.setWidth(width);
+  canvas.setHeight(height);
 
-  function smoothPanTo(canvas, targetX, targetY, duration = 600) {
-    const startX = canvas.viewportTransform[4];
-    const startY = canvas.viewportTransform[5];
-    const deltaX = targetX - startX;
-    const deltaY = targetY - startY;
-    const startTime = performance.now();
-
-    function animate(time) {
-      let elapsed = time - startTime;
-      let progress = Math.min(elapsed / duration, 1);
-      // Easing (easeInOutQuad)
-      progress = progress < 0.5
-        ? 2 * progress * progress
-        : -1 + (4 - 2 * progress) * progress;
-
-      const currentX = startX + deltaX * progress;
-      const currentY = startY + deltaY * progress;
-
-      canvas.viewportTransform[4] = currentX;
-      canvas.viewportTransform[5] = currentY;
-      canvas.requestRenderAll();
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    }
-    requestAnimationFrame(animate);
-  }
-
-  window.onload = function() {
-    const canvasEl = document.getElementById('c');
-    canvasEl.width = window.innerWidth;
-    canvasEl.height = window.innerHeight;
-
-    const canvas = new fabric.Canvas('c', { selection: false, allowTouchScrolling: true });
-
-    // Fondo patrón de papel arrugado (de ejemplo)
-    fabric.Image.fromURL('https://cdn.pixabay.com/photo/2017/01/31/22/29/paper-2029236_1280.jpg', function(img) {
-      img.scaleToWidth(400);
-      img.scaleToHeight(300);
-
-      // Creamos patrón repetido
-      const patternSourceCanvas = new fabric.StaticCanvas(null, { width: img.width, height: img.height });
-      patternSourceCanvas.add(img);
-      const pattern = new fabric.Pattern({
-        source: function() {
-          return patternSourceCanvas.getElement();
-        },
-        repeat: 'repeat'
-      });
-
-      canvas.setBackgroundColor(pattern, canvas.renderAll.bind(canvas));
+  // Fondo: textura papel
+  fabric.Image.fromURL('https://cdn.pixabay.com/photo/2017/01/31/22/29/paper-2029236_1280.jpg', function(img) {
+    const patternSourceCanvas = new fabric.StaticCanvas(null, { width: img.width, height: img.height });
+    patternSourceCanvas.add(img);
+    const pattern = new fabric.Pattern({
+      source: patternSourceCanvas.getElement(),
+      repeat: 'repeat',
     });
+    canvas.setBackgroundColor(pattern, canvas.renderAll.bind(canvas));
+  });
 
-    // Área grande
+  // Añadir botones (textos)
+  const sections = [
+    { name: "Sobre mí", x: 100, y: 100 },
+    { name: "Portafolio", x: 1000, y: 100 },
+    { name: "Servicios", x: 2000, y: 100 },
+    { name: "Fotografía", x: 3000, y: 100 },
+    { name: "Diseño gráfico", x: 4000, y: 100 },
+    { name: "Diseño web", x: 5000, y: 100 },
+    { name: "Tips", x: 6000, y: 100 },
+    { name: "Redes sociales", x: 7000, y: 100 },
+    { name: "Contáctame", x: 8000, y: 100 }
+  ];
+
+  sections.forEach(sec => {
+    const text = new fabric.Text(sec.name, {
+      left: sec.x,
+      top: sec.y,
+      fontSize: 30,
+      fill: "black",
+      selectable: false,
+      hoverCursor: "pointer"
+    });
+    text.on("mousedown", () => {
+      // pan hacia la sección
+      canvas.viewportTransform[4] = -sec.x + canvas.width / 2;
+      canvas.viewportTransform[5] = -sec.y + canvas.height / 2;
+      canvas.requestRenderAll();
+    });
+    canvas.add(text);
+  });
+
+  // Zoom suave con límites
+  canvas.on("mouse:wheel", function(opt) {
+    let zoom = canvas.getZoom();
+    zoom *= 0.999 ** opt.e.deltaY;
+    zoom = Math.min(Math.max(zoom, 0.5), 3); // límites
+    canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+    opt.e.preventDefault();
+    opt.e.stopPropagation();
+  });
+
+  // Pan con mouse
+  let isDragging = false;
+  let lastPosX, lastPosY;
+
+  canvas.on("mouse:down", function(opt) {
+    isDragging = true;
+    lastPosX = opt.e.clientX;
+    lastPosY = opt.e.clientY;
+  });
+
+  canvas.on("mouse:move", function(opt) {
+    if (isDragging) {
+      const e = opt.e;
+      const vpt = canvas.viewportTransform;
+      vpt[4] += e.clientX - lastPosX;
+      vpt[5] += e.clientY - lastPosY;
+      canvas.requestRenderAll();
+      lastPosX = e.clientX;
+      lastPosY = e.clientY;
+    }
+  });
+
+  canvas.on("mouse:up", function() {
+    isDragging = false;
+  });
+
+  // Adaptar tamaño en móviles
+  window.addEventListener('resize', () => {
     canvas.setWidth(window.innerWidth);
     canvas.setHeight(window.innerHeight);
-
-    // Limites de viewport (no se puede salir de esta área)
-    function clampViewport(vpt) {
-      const zoom = canvas.getZoom();
-      const maxX = 0;
-      const maxY = 0;
-      const minX = -canvasWidth * zoom + canvas.width;
-      const minY = -canvasHeight * zoom + canvas.height;
-
-      if (vpt[4] > maxX) vpt[4] = maxX;
-      if (vpt[5] > maxY) vpt[5] = maxY;
-      if (vpt[4] < minX) vpt[4] = minX;
-      if (vpt[5] < minY) vpt[5] = minY;
-    }
-
-    // Botones con posiciones específicas
-    const sections = [
-      { name: "Sobre mí", x: 100, y: 100 },
-      { name: "Portafolio", x: 1200, y: 300 },
-      { name: "Servicios", x: 2400, y: 400 },
-      { name: "Fotografía", x: 800, y: 1600 },
-      { name: "Diseño gráfico", x: 1800, y: 1300 },
-      { name: "Diseño web", x: 2800, y: 1500 },
-      { name: "Tips", x: 2200, y: 2500 },
-      { name: "Redes sociales", x: 3500, y: 1000 },
-      { name: "Contáctame", x: 3400, y: 2600 },
-    ];
-
-    sections.forEach(sec => {
-      const btn = new fabric.Text(sec.name, {
-        left: sec.x,
-        top: sec.y,
-        fontSize: 30,
-        fill: 'black',
-        fontWeight: 'bold',
-        hasControls: false,
-        hasBorders: false,
-        selectable: false,
-        hoverCursor: 'pointer',
-        shadow: 'rgba(0,0,0,0.15) 1px 1px 2px',
-      });
-
-      btn.on('mousedown', () => {
-        // Al hacer clic hacemos pan suave al área correspondiente
-        // Ajustamos la posición para centrar la sección en viewport
-        const zoom = canvas.getZoom();
-        const targetX = -sec.x * zoom + canvas.width / 2;
-        const targetY = -sec.y * zoom + canvas.height / 2;
-
-        smoothPanTo(canvas, targetX, targetY);
-      });
-
-      canvas.add(btn);
-    });
-
-    // Zoom suave y controlado
-    canvas.on('mouse:wheel', function(opt) {
-      const delta = opt.e.deltaY;
-      let zoom = canvas.getZoom();
-      zoom *= delta > 0 ? 0.95 : 1.05;
-
-      if (zoom > 4) zoom = 4;
-      if (zoom < 0.5) zoom = 0.5;
-
-      const pointer = canvas.getPointer(opt.e);
-      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-
-      clampViewport(canvas.viewportTransform);
-      opt.e.preventDefault();
-      opt.e.stopPropagation();
-    });
-
-    // Drag para pan (mouse y touch)
-    let isDragging = false;
-    let lastPos = null;
-
-    canvas.on('mouse:down', function(opt) {
-      if (opt.e.button === 0) { // izquierdo
-        isDragging = true;
-        lastPos = { x: opt.e.clientX, y: opt.e.clientY };
-        canvas.selection = false;
-      }
-    });
-
-    canvas.on('mouse:move', function(opt) {
-      if (isDragging) {
-        const e = opt.e;
-        const vpt = canvas.viewportTransform;
-
-        let dx = e.clientX - lastPos.x;
-        let dy = e.clientY - lastPos.y;
-
-        vpt[4] += dx;
-        vpt[5] += dy;
-
-        clampViewport(vpt);
-
-        canvas.requestRenderAll();
-        lastPos = { x: e.clientX, y: e.clientY };
-      }
-    });
-
-    canvas.on('mouse:up', function(opt) {
-      isDragging = false;
-      canvas.selection = true;
-    });
-
-    // Soporte básico para touch (pan con un dedo)
-    let lastTouch = null;
-    canvas.on('touch:gesture', function(opt) {
-      if (opt.e.touches && opt.e.touches.length === 2) {
-        // Pinch to zoom
-        const zoom = canvas.getZoom();
-        const delta = opt.e.scale > 1 ? 1.05 : 0.95;
-        let newZoom = zoom * delta;
-
-        if (newZoom > 4) newZoom = 4;
-        if (newZoom < 0.5) newZoom = 0.5;
-
-        // Usamos el centro del gesto como punto de zoom
-        const rect = canvas.upperCanvasEl.getBoundingClientRect();
-        const centerX = (opt.e.touches[0].clientX + opt.e.touches[1].clientX) / 2 - rect.left;
-        const centerY = (opt.e.touches[0].clientY + opt.e.touches[1].clientY) / 2 - rect.top;
-
-        canvas.zoomToPoint({ x: centerX, y: centerY }, newZoom);
-
-        clampViewport(canvas.viewportTransform);
-        opt.e.preventDefault();
-      }
-    });
-
-    canvas.on('touch:drag', function(opt) {
-      if (opt.e.touches && opt.e.touches.length === 1) {
-        const e = opt.e.touches[0];
-        if (lastTouch) {
-          const vpt = canvas.viewportTransform;
-          let dx = e.clientX - lastTouch.x;
-          let dy = e.clientY - lastTouch.y;
-
-          vpt[4] += dx;
-          vpt[5] += dy;
-
-          clampViewport(vpt);
-
-          canvas.requestRenderAll();
-        }
-        lastTouch = { x: e.clientX, y: e.clientY };
-      }
-    });
-
-    canvas.on('touch:dragend', function() {
-      lastTouch = null;
-    });
-
-    // Centrar al inicio en la primera sección
-    const start = sections[0];
-    canvas.viewportTransform = [1, 0, 0, 1, -start.x + canvas.width / 2, -start.y + canvas.height / 2];
-    clampViewport(canvas.viewportTransform);
     canvas.requestRenderAll();
-
-    // Evitar menú contextual en clic derecho
-    document.oncontextmenu = () => false;
-
-    // Ajustar tamaño al cambiar ventana
-    window.addEventListener('resize', () => {
-      canvas.setWidth(window.innerWidth);
-      canvas.setHeight(window.innerHeight);
-      clampViewport(canvas.viewportTransform);
-      canvas.requestRenderAll();
-    });
-  }
+  });
 </script>
 </body>
 </html>
