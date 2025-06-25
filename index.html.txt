@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Canvas Infinito Responsivo</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      background: #f7f7f7;
+    }
+    #instructions {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      z-index: 100;
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+<div id="instructions">
+  🔍 Rueda del mouse para hacer zoom.<br>
+  ✋ Click derecho sostenido para mover el canvas.
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+  function initCanvas() {
+    const canvasEl = document.getElementById('c');
+    canvasEl.width = window.innerWidth;
+    canvasEl.height = window.innerHeight;
+
+    const canvas = new fabric.Canvas('c', { selection: false });
+
+    // Definimos un área de trabajo grande
+    const canvasWidth = 5000;
+    const canvasHeight = 5000;
+
+    // Creamos algunos elementos aleatorios
+    for (let i = 0; i < 150; i++) {
+      let rect = new fabric.Rect({
+        left: Math.random() * canvasWidth,
+        top: Math.random() * canvasHeight,
+        fill: 'rgba(0, 150, 255, 0.6)',
+        width: 80,
+        height: 80
+      });
+      canvas.add(rect);
+    }
+
+    // Ajustamos viewport al centro inicial
+    canvas.viewportTransform = [1, 0, 0, 1, -(canvasWidth/2 - window.innerWidth/2), -(canvasHeight/2 - window.innerHeight/2)];
+
+    // Pan con click derecho
+    let isDragging = false;
+    let lastPosX, lastPosY;
+
+    canvas.on('mouse:down', function(opt) {
+      if (opt.e.button === 2) {
+        isDragging = true;
+        lastPosX = opt.e.clientX;
+        lastPosY = opt.e.clientY;
+      }
+    });
+
+    canvas.on('mouse:move', function(opt) {
+      if (isDragging) {
+        let e = opt.e;
+        let vpt = canvas.viewportTransform;
+        vpt[4] += e.clientX - lastPosX;
+        vpt[5] += e.clientY - lastPosY;
+        canvas.requestRenderAll();
+        lastPosX = e.clientX;
+        lastPosY = e.clientY;
+      }
+    });
+
+    canvas.on('mouse:up', function() { isDragging = false; });
+    document.oncontextmenu = () => false;
+
+    // Zoom con rueda
+    canvas.on('mouse:wheel', function(opt) {
+      let delta = opt.e.deltaY;
+      let zoom = canvas.getZoom();
+      zoom = 0.999 * delta;
+      if (zoom > 4) zoom = 4;
+      if (zoom < 0.1) zoom = 0.1;
+      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    });
+
+    window.addEventListener('resize', () => {
+      canvasEl.width = window.innerWidth;
+      canvasEl.height = window.innerHeight;
+      canvas.calcOffset();
+      canvas.requestRenderAll();
+    });
+  }
+
+  window.onload = initCanvas;
+</script>
+
+</body>
+</html>
